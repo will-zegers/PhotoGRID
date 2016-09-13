@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>PhotoGrid</title>
+	<link rel="stylesheet" href="/css/main.css">
+	<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+	<script src="/js/photogrid_utils.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script>
+	$(() => {
+		let host 				 = '{{host}}',
+				socket       = io(host),
+				$progressBar = $('.progress'),
+				$galleryUL   = $('.gallery ul');
+
+		let renderList = () => {
+			ajax({
+				url: host + '/getImages',
+				success: data => {
+					let imageList = JSON.parse(data.response);
+					$galleryUL.html('');
+					for (let image of imageList) {
+						let imageLI = `
+							<li>
+								<div class="overlay">
+								<div class="voteCtrl">
+									<a href="#" data-photoid='${image._id}' class="voteUp">
+										<img src="/images/voteup.png" alt="Click Here to Vote Up !">
+										<h4>${image.votes}</h4>
+									</a>
+								</div>
+								</div>
+								<div class="imageHolder">
+									<img src="https://d20vhj7uuaq2p4.cloudfront.net/${image.filename}" alt="">
+								</div>
+							</li>
+						`
+						$galleryUL.append(imageLI);
+					}
+					$('.voteUp').on('click', function() {
+						let thisVoteUp = $(this);
+						$.post(
+							host + '/voteup',
+							{id: thisVoteUp.data('photoid')}
+						)
+							.done(data => {
+								thisVoteUp.find('h4').html(data.votes);
+							});
+					});
+				}
+			});
+		}
+
+		let uploadNow = () => {
+			$progressBar.fadeIn(100);
+			let uploadURL  = host + '/upload',
+			    uploadFile = $('.uploadPic');
+
+			if (uploadFile.val() !== '') {
+				let form = new FormData();
+				form.append('upload', uploadFile[0].files[0]);
+
+				// Perform AJAX POST request and send the file
+				ajax({
+					method: 'post',
+					url: uploadURL,
+					success: () => {
+						$progressBar.fadeOut(200);
+						uploadFile.val('');
+					},
+					progress: event => {
+						if (event.lengthComputable) {
+							let progress = Math.round((event.loaded * 100) / event.total);
+							$progressBar.css('width', (progress + '%'))
+						}
+					},
+					payload: form
+				});
+			}
+		};
+
+		socket
+			.on('status', data => {
+				showStatus(data.msg, data.delay);
+			})
+			.on('doUpdate', () => {
+				renderList();
+			});
+
+		$('#doUpload').click( () => {
+			uploadNow();
+		});
+
+		renderList();
+	});
+	</script>
+</head>
+<body>
+	<div class="container">
+		<div class="topDeck">
+			<div class="logo">
+				<h1>PhotoGRID</h1>
+			</div>
+			<div class="controls">
+				<input type="file" name="uploadPic" class="uploadPic">
+				<button id="doUpload">Upload</button>
+				<div class="progressBarDiv">
+					<div class="progress"></div>
+				</div>
+				<h5 class="status"></h5>
+			</div>
+		</div>
+		<div class="gallery">
+			<ul>
+			</ul>
+		</div>
+	</div>
+</body>
+</html>
